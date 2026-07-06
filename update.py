@@ -5,7 +5,6 @@ import re
 import time
 import zipfile
 from io import BytesIO
-from google.colab import files
 import concurrent.futures
 
 # pykrx가 없으면 자동 설치 (KRX 주가 조회용)
