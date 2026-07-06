@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>K-위불 : 실시간 배당 캘린더</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .hide-scroll::-webkit-scrollbar { display: none; }
+        .hide-scroll { -ms-overflow-style: none; scrollbar-width: none; }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-800 p-4 md:p-8 font-sans min-h-screen">
+    <div class="max-w-7xl mx-auto space-y-6">
+        <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6 flex flex-col md:flex-row justify-between items-center gap-4">
+            <div>
+                <h1 class="text-2xl font-bold text-slate-900">📊 K-위불 배당 캘린더 (MVP)</h1>
+                <p class="text-sm text-slate-500 mt-1">전자공시(DART) 기반 실시간 배당 정보</p>
+            </div>
+            <div class="relative w-full md:w-80">
+                <input type="text" id="searchInput" placeholder="종목명 검색" class="w-full pl-10 pr-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                <span class="absolute left-3 top-2.5 text-slate-400">🔍</span>
+            </div>
+        </div>
+
+        <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
+            <div class="flex justify-between items-center mb-4">
+                <h2 class="text-lg font-bold" id="calendarMonthYear"></h2>
+                <div class="space-x-2">
+                    <button id="prevMonth" class="px-3 py-1 bg-slate-100 hover:bg-slate-200 rounded text-sm font-semibold">◀ 이전달</button>
+                    <button id="nextMonth" class="px-3 py-1 bg-slate-100 hover:bg-slate-200 rounded text-sm font-semibold">다음달 ▶</button>
+                </div>
+            </div>
+            <div class="grid grid-cols-7 gap-px bg-slate-200 border border-slate-200 rounded-t-lg overflow-hidden text-center text-sm font-semibold bg-slate-50">
+                <div class="py-2 text-red-500">일</div><div class="py-2">월</div><div class="py-2">화</div><div class="py-2">수</div><div class="py-2">목</div><div class="py-2">금</div><div class="py-2 text-blue-500">토</div>
+            </div>
+            <div id="calendarGrid" class="grid grid-cols-7 gap-px bg-slate-200 border-x border-b border-slate-200 rounded-b-lg"></div>
+        </div>
+
+        <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6 overflow-hidden">
+            <h2 class="text-lg font-bold mb-4">최근 배당 공시 내역</h2>
+            <div class="overflow-x-auto hide-scroll">
+                <table class="min-w-full text-sm text-left whitespace-nowrap">
+                    <thead class="bg-slate-50 text-slate-600 font-semibold border-y border-slate-200">
+                        <tr>
+                            <th class="py-3 px-4">회사명 (코드)</th>
+                            <th class="py-3 px-4 text-right">1주당 배당금</th>
+                            <th class="py-3 px-4 text-right">공시시점 주가</th>
+                            <th class="py-3 px-4 text-right text-green-700">배당율</th>
+                            <th class="py-3 px-4 text-red-600 text-center">배당기준일</th>
+                            <th class="py-3 px-4 text-blue-600 text-center">지급예정일</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tableBody" class="divide-y divide-slate-100"></tbody>
+                </table>
+            </div>
+            <div id="noResult" class="text-center text-slate-500 py-10 hidden">데이터를 불러오는 중이거나 결과가 없습니다.</div>
+        </div>
+    </div>
+
+    <script>
+        let rawData = [];
+        let currentData = [];
+        let currentDate = new Date(); 
+
+        const formatNum = (num) => num ? num.toLocaleString('ko-KR') : '-';
+
+        function renderTable(data) {
+            const tbody = document.getElementById('tableBody');
+            const noResult = document.getElementById('noResult');
+            tbody.innerHTML = '';
+            if (data.length === 0) {
+                noResult.classList.remove('hidden');
+            } else {
+                noResult.classList.add('hidden');
+                data.forEach(row => {
+                    const tr = document.createElement('tr');
+                    tr.className = 'hover:bg-slate-50 transition-colors bg-white';
+                    tr.innerHTML = `
+                        <td class="py-3 px-4"><span class="font-bold text-slate-800">${row['회사명']}</span> <span class="text-xs text-slate-400">${row['종목코드']||''}</span></td>
+                        <td class="py-3 px-4 text-right font-semibold text-slate-800">${formatNum(row['1주당 배당금(원)'])}원</td>
+                        <td class="py-3 px-4 text-right text-slate-500">${formatNum(row['공시시점주가(원)'])}원</td>
+                        <td class="py-3 px-4 text-right font-bold text-green-700 bg-green-50/50">${row['계산배당율(%)'] ? row['계산배당율(%)'].toFixed(2) : '-'}%</td>
+                        <td class="py-3 px-4 font-medium text-red-500 text-center">${row['배당기준일']||'-'}</td>
+                        <td class="py-3 px-4 font-medium text-blue-500 text-center">${row['지급예정일']||'-'}</td>
+                    `;
+                    tbody.appendChild(tr);
+                });
+            }
+        }
+
+        function renderCalendar() {
+            const grid = document.getElementById('calendarGrid');
+            grid.innerHTML = '';
+            const year = currentDate.getFullYear();
+            const month = currentDate.getMonth();
+            document.getElementById('calendarMonthYear').innerText = `${year}년 ${month + 1}월`;
+            const firstDay = new Date(year, month, 1).getDay();
+            const daysInMonth = new Date(year, month + 1, 0).getDate();
+            const today = new Date();
+
+            for (let i = 0; i < firstDay; i++) grid.innerHTML += `<div class="bg-white min-h-[100px] p-2 opacity-30"></div>`;
+
+            for (let day = 1; day <= daysInMonth; day++) {
+                const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+                const isToday = (year === today.getFullYear() && month === today.getMonth() && day === today.getDate());
+                let cellHtml = `<div class="bg-white min-h-[100px] p-1 border-t-2 ${isToday ? 'border-blue-500 bg-blue-50/20' : 'border-transparent'}">
+                                    <div class="text-right text-sm font-medium ${isToday ? 'text-blue-600 font-bold' : 'text-slate-500'} mb-1 pr-1">${day}</div>
+                                    <div class="space-y-1 hide-scroll max-h-[80px] overflow-y-auto">`;
+                currentData.forEach(row => {
+                    if (row['배당기준일'] === dateStr) cellHtml += `<div class="text-[11px] truncate px-1.5 py-0.5 rounded border bg-red-50 border-red-100 text-red-700"><span class="font-bold">${row['회사명']}</span> 기준일</div>`;
+                    if (row['지급예정일'] === dateStr) cellHtml += `<div class="text-[11px] truncate px-1.5 py-0.5 rounded border bg-blue-50 border-blue-100 text-blue-700"><span class="font-bold">${row['회사명']}</span> 지급일</div>`;
+                });
+                cellHtml += `</div></div>`;
+                grid.innerHTML += cellHtml;
+            }
+        }
+
+        document.getElementById('prevMonth').addEventListener('click', () => { currentDate.setMonth(currentDate.getMonth() - 1); renderCalendar(); });
+        document.getElementById('nextMonth').addEventListener('click', () => { currentDate.setMonth(currentDate.getMonth() + 1); renderCalendar(); });
+        document.getElementById('searchInput').addEventListener('input', (e) => {
+            const keyword = e.target.value.toLowerCase().trim();
+            currentData = rawData.filter(item => item['회사명'].toLowerCase().includes(keyword));
+            renderTable(currentData);
+            renderCalendar();
+        });
+
+        // 🌟 핵심: 로봇이 만들어준 data.json 파일을 불러와서 화면에 그림
+        fetch('data.json')
+            .then(response => response.json())
+            .then(data => {
+                rawData = data;
+                currentData = [...rawData];
+                renderTable(currentData);
+                renderCalendar();
+            })
+            .catch(error => console.error("데이터를 불러오지 못했습니다.", error));
+    </script>
+</body>
+</html>
