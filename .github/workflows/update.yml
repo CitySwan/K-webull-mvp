@@ -3,7 +3,7 @@ name: Daily Dividend Update
 on:
   schedule:
     # 매일 한국 시간 매시간 정각에 자동 실행
-    - cron: '0 * * * *'
+    - cron: '0 */3 * * *'
   workflow_dispatch: # 버튼으로 수동 실행하는 기능
 
 jobs:
