@@ -228,7 +228,7 @@ def enrich_with_price_and_yield(df):
 # ------------------------------------------------------------------
 # 공시 목록 수집
 # ------------------------------------------------------------------
-def get_advanced_dividend_alerts(days=90):
+def get_advanced_dividend_alerts(days=3):
     end_date = datetime.today().strftime('%Y%m%d')
     start_date = (datetime.today() - timedelta(days=days)).strftime('%Y%m%d')
     url = "https://opendart.fss.or.kr/api/list.json"
