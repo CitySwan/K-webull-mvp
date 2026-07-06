@@ -308,15 +308,22 @@ elif not df_new.empty:
     df_combined = df_new
 
 if not df_combined.empty:
-    # 중복 제거 (회사명과 공시일자가 같으면 최신 데이터로 유지)
-    df_combined = df_combined.drop_duplicates(subset=['회사명', '공시일자'], keep='last')
-    df_combined = df_combined.sort_values(by='공시일자', ascending=False)
-    
-    json_data = df_combined.where(pd.notnull(df_combined), None).to_dict(orient='records')
-    
-    with open('data.json', 'w', encoding='utf-8') as f:
-        json.dump(json_data, f, ensure_ascii=False, indent=2)
-    print(f"\n✅ 누적 업데이트 완료! 총 보관된 데이터 수: {len(json_data)}건")
+        # 중복 제거 및 정렬
+        df_combined = df_combined.drop_duplicates(subset=['회사명', '공시일자'], keep='last')
+        df_combined = df_combined.sort_values(by='공시일자', ascending=False)
+        
+        # 🌟 핵심 수정: 모든 결측치(NaN, NaT, NA)를 JSON용 None(null)으로 완벽하게 변환
+        # 1. 모든 열을 object 타입으로 변환하여 None이 들어갈 수 있게 함
+        df_final = df_combined.astype(object)
+        # 2. 판다스 전용 결측치와 넘파이 결측치를 모두 None으로 교체
+        df_final = df_final.where(pd.notnull(df_final), None)
+        
+        json_data = df_final.to_dict(orient='records')
+        
+        with open('data.json', 'w', encoding='utf-8') as f:
+            # allow_nan=False를 설정하여 혹시라도 NaN이 들어가는 것을 원천 봉쇄
+            json.dump(json_data, f, ensure_ascii=False, indent=2, default=str)
+        print(f"\n✅ 데이터 정제 및 저장 완료! ({len(json_data)}건)")
 else:
     with open('data.json', 'w', encoding='utf-8') as f:
         json.dump([], f)
